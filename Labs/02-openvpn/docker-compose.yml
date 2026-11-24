@@ -1,0 +1,47 @@
+services:
+  openvpn-server:
+    image: ubuntu:22.04
+    container_name: ovpn-server
+    hostname: ovpn-server
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      - net.ipv4.ip_forward=1
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./:/etc/openvpn/lab
+    networks:
+      ovpn-public:
+        ipv4_address: 10.10.0.10
+      ovpn-internal:
+        ipv4_address: 192.168.70.10
+    command: >
+      sh -c "apt-get update && apt-get install -y openvpn easy-rsa iptables iproute2 iputils-ping tcpdump iperf3 &&
+      iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth1 -j MASQUERADE || true;
+      tail -f /dev/null"
+
+  internal-web:
+    image: python:3.11-slim
+    container_name: ovpn-internal-web
+    hostname: internal-web
+    networks:
+      ovpn-internal:
+        ipv4_address: 192.168.70.20
+    command: >
+      sh -c "echo '<h1>UIT NT140 - Internal Corporate Web (192.168.70.20)</h1>' > /tmp/index.html &&
+      python3 -m http.server 80 --directory /tmp"
+
+networks:
+  ovpn-public:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+  ovpn-internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.70.0/24

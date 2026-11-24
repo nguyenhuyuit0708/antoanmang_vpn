@@ -1,0 +1,77 @@
+services:
+  gateway-a:
+    build: .
+    container_name: ipsec-gateway-a
+    hostname: gateway-a
+    privileged: true
+    sysctls:
+      - net.ipv4.ip_forward=1
+    volumes:
+      - ./gateway-a/swanctl.conf:/etc/swanctl/swanctl.conf:ro
+    networks:
+      wan-net:
+        ipv4_address: 172.16.0.10
+      lan-a:
+        ipv4_address: 10.1.0.2
+    command: >
+      sh -c "/usr/lib/ipsec/charon --use-syslog & sleep 2 && swanctl --load-all && tail -f /dev/null"
+
+  gateway-b:
+    build: .
+    container_name: ipsec-gateway-b
+    hostname: gateway-b
+    privileged: true
+    sysctls:
+      - net.ipv4.ip_forward=1
+    volumes:
+      - ./gateway-b/swanctl.conf:/etc/swanctl/swanctl.conf:ro
+    networks:
+      wan-net:
+        ipv4_address: 172.16.0.20
+      lan-b:
+        ipv4_address: 10.2.0.2
+    command: >
+      sh -c "/usr/lib/ipsec/charon --use-syslog & sleep 2 && swanctl --load-all && tail -f /dev/null"
+
+  host-a:
+    image: ubuntu:22.04
+    container_name: ipsec-host-a
+    hostname: host-a
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lan-a:
+        ipv4_address: 10.1.0.10
+    command: >
+      sh -c "apt-get update && apt-get install -y iproute2 iputils-ping iperf3 tcpdump &&
+      ip route replace 10.2.0.0/24 via 10.1.0.2 && tail -f /dev/null"
+
+  host-b:
+    image: ubuntu:22.04
+    container_name: ipsec-host-b
+    hostname: host-b
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lan-b:
+        ipv4_address: 10.2.0.10
+    command: >
+      sh -c "apt-get update && apt-get install -y iproute2 iputils-ping iperf3 tcpdump &&
+      ip route replace 10.1.0.0/24 via 10.2.0.2 && tail -f /dev/null"
+
+networks:
+  wan-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
+  lan-a:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.1.0.0/24
+  lan-b:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.2.0.0/24
